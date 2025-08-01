@@ -56,6 +56,7 @@ type NFTResult = {
   };
 };
 type AnalysisResult = WalletResult | CollectionResult | NFTResult;
+type AnalysisType = "wallet" | "collection" | "nft";
 
 export default function Web3AnalyzerPage() {
   const [analysisType, setAnalysisType] = useState<AnalysisType>("wallet");
@@ -255,9 +256,7 @@ export default function Web3AnalyzerPage() {
         data.metadata.attributes
           .slice(0, 5)
           .forEach(
-            (
-              attr: NonNullable<NFTResult["metadata"]>["attributes"][number]
-            ) => {
+            (attr) => {
               resultText += `• ${attr.trait_type || attr.type}: ${
                 attr.value
               }\n`;
@@ -282,11 +281,11 @@ export default function Web3AnalyzerPage() {
 
     switch (analysisType) {
       case "wallet":
-        return formatWalletResult(result);
+        return formatWalletResult(result as WalletResult);
       case "collection":
-        return formatCollectionResult(result);
+        return formatCollectionResult(result as CollectionResult);
       case "nft":
-        return formatNFTResult(result);
+        return formatNFTResult(result as NFTResult);
       default:
         return JSON.stringify(result, null, 2);
     }
@@ -339,7 +338,7 @@ export default function Web3AnalyzerPage() {
               : "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600"
           )}
         >
-          <Image size={18} />
+          <Image size={18} aria-label="NFT icon" />
           <span>NFT</span>
         </button>
       </div>
