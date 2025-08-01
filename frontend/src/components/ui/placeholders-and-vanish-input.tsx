@@ -4,10 +4,11 @@ import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 
-interface PixelData {
+interface DrawablePixel {
   x: number;
   y: number;
-  color: [number, number, number, number];
+  r: number;
+  color: string;
 }
 
 export function PlaceholdersAndVanishInput({
@@ -27,7 +28,7 @@ export function PlaceholdersAndVanishInput({
       setCurrentPlaceholder((prev) => (prev + 1) % placeholders.length);
     }, 3000);
   }, [placeholders.length]);
-  
+
   const handleVisibilityChange = useCallback(() => {
     if (document.visibilityState !== "visible" && intervalRef.current) {
       clearInterval(intervalRef.current); // Clear the interval when the tab is not visible
@@ -50,7 +51,8 @@ export function PlaceholdersAndVanishInput({
   }, [placeholders, startAnimation, handleVisibilityChange]);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const newDataRef = useRef<PixelData[]>([]);
+  const newDataRef = useRef<DrawablePixel[]>([]);
+
   const inputRef = useRef<HTMLInputElement>(null);
   const [value, setValue] = useState("");
   const [animating, setAnimating] = useState(false);
@@ -74,8 +76,7 @@ export function PlaceholdersAndVanishInput({
 
     const imageData = ctx.getImageData(0, 0, 800, 800);
     const pixelData = imageData.data;
-    const newData: PixelData[] = [];
-
+    const newData: DrawablePixel[] = [];
     for (let t = 0; t < 800; t++) {
       const i = 4 * t * 800;
       for (let n = 0; n < 800; n++) {
@@ -86,14 +87,10 @@ export function PlaceholdersAndVanishInput({
           pixelData[e + 2] !== 0
         ) {
           newData.push({
-            x: n,
-            y: t,
-            color: [
-              pixelData[e],
-              pixelData[e + 1],
-              pixelData[e + 2],
-              pixelData[e + 3],
-            ],
+            x: 100,
+            y: 150,
+            r: 1,
+            color: "rgba(255, 200, 100, 0.75)", 
           });
         }
       }
@@ -103,7 +100,7 @@ export function PlaceholdersAndVanishInput({
       x,
       y,
       r: 1,
-      color: `rgba(${color[0]}, ${color[1]}, ${color[2]}, ${color[3]})`,
+      color: `rgba(${color[0]}, ${color[1]}, ${color[2]}`,
     }));
   }, [value]);
 
@@ -114,7 +111,7 @@ export function PlaceholdersAndVanishInput({
   const animate = (start: number) => {
     const animateFrame = (pos: number = 0) => {
       requestAnimationFrame(() => {
-        const newArr = [];
+        const newArr: DrawablePixel[] = [];
         for (let i = 0; i < newDataRef.current.length; i++) {
           const current = newDataRef.current[i];
           if (current.x < pos) {
