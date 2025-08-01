@@ -4,6 +4,7 @@ import { useState } from "react";
 import { PlaceholdersAndVanishInput } from "@/components/ui/placeholders-and-vanish-input";
 import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { CollectionInfo } from "@/lib/blockchain";
 
 export default function CollectionCheckPage() {
   const [contract, setContract] = useState("");
@@ -50,7 +51,7 @@ export default function CollectionCheckPage() {
       
       if (data.topHolders.length > 0) {
         resultText += `🐋 Top Holders:\n`;
-        data.topHolders.forEach((holder: any, index: number) => {
+        data.topHolders.forEach((holder: CollectionInfo['topHolders'][0], index: number) => {
           resultText += `${index + 1}. ${holder.address.slice(0, 6)}...${holder.address.slice(-4)}: ${holder.count} tokens (${holder.percentage.toFixed(1)}%)\n`;
         });
         resultText += '\n';

@@ -18,6 +18,34 @@ import {
   KNOWN_SAFE_TOKENS
 } from '@/lib/blockchain';
 
+// Interface for raw token data from external APIs
+interface RawTokenData {
+  address?: string;
+  token_address?: string;
+  contractAddress?: string;
+  name?: string;
+  symbol?: string;
+  decimals?: number;
+  balance?: string;
+  value?: string;
+  [key: string]: unknown;
+}
+
+// Interface for raw NFT data from external APIs
+interface RawNFTData {
+  contractAddress?: string;
+  token_address?: string;
+  tokenId?: string;
+  token_id?: string;
+  name?: string;
+  token_uri?: string;
+  metadata?: unknown;
+  contract?: {
+    address?: string;
+  };
+  [key: string]: unknown;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { address } = await request.json();
@@ -95,7 +123,8 @@ async function analyzeWalletTokens(provider: ethers.JsonRpcProvider, walletAddre
       
       for (const tokenData of externalTokens.slice(0, 20)) { // Limit to first 20 tokens
         try {
-          const tokenAddress = tokenData.token_address || tokenData.contractAddress;
+          const rawToken = tokenData as unknown as RawTokenData;
+          const tokenAddress = tokenData.address || rawToken.token_address || rawToken.contractAddress;
           if (!tokenAddress) continue;
 
           const contract = new ethers.Contract(tokenAddress, ERC20_ABI, provider);
@@ -108,12 +137,23 @@ async function analyzeWalletTokens(provider: ethers.JsonRpcProvider, walletAddre
           ]);
 
           // Format balance
-          const balance = tokenData.balance || tokenData.value || '0';
+          const balance = tokenData.balance || rawToken.value || '0';
           const formattedBalance = ethers.formatUnits(balance, decimals);
           
           if (parseFloat(formattedBalance) > 0) {
+            // Create a temporary TokenInfo object for risk analysis
+            const tempTokenInfo: TokenInfo = {
+              address: tokenAddress,
+              name,
+              symbol,
+              decimals,
+              balance: formattedBalance,
+              riskLevel: 'low', // Will be updated after analysis
+              riskFactors: []
+            };
+            
             // Analyze risk factors
-            const riskFactors = analyzeTokenRisk(tokenAddress, { name, symbol });
+            const riskFactors = analyzeTokenRisk(tokenAddress, tempTokenInfo);
             const riskLevel = KNOWN_SAFE_TOKENS.has(tokenAddress.toLowerCase()) ? 'low' : 
                              riskFactors.length >= 2 ? 'high' : 
                              riskFactors.length >= 1 ? 'medium' : 'low';
@@ -154,7 +194,7 @@ async function analyzeWalletTokens(provider: ethers.JsonRpcProvider, walletAddre
           const contract = new ethers.Contract(tokenAddress, ERC20_ABI, provider);
           const balance = await contract.balanceOf(walletAddress);
           
-          if (balance > 0n) {
+          if (balance > BigInt(0)) {
             const [name, symbol, decimals] = await Promise.all([
               contract.name(),
               contract.symbol(),
@@ -163,8 +203,19 @@ async function analyzeWalletTokens(provider: ethers.JsonRpcProvider, walletAddre
             
             const formattedBalance = ethers.formatUnits(balance, decimals);
             
+            // Create a temporary TokenInfo object for risk analysis
+            const tempTokenInfo: TokenInfo = {
+              address: tokenAddress,
+              name,
+              symbol,
+              decimals,
+              balance: formattedBalance,
+              riskLevel: 'low', // Will be updated after analysis
+              riskFactors: []
+            };
+            
             // Analyze risk factors
-            const riskFactors = analyzeTokenRisk(tokenAddress, { name, symbol });
+            const riskFactors = analyzeTokenRisk(tokenAddress, tempTokenInfo);
             const riskLevel = KNOWN_SAFE_TOKENS.has(tokenAddress.toLowerCase()) ? 'low' : 
                              riskFactors.length >= 2 ? 'high' : 
                              riskFactors.length >= 1 ? 'medium' : 'low';
@@ -213,38 +264,51 @@ async function analyzeWalletNFTs(provider: ethers.JsonRpcProvider, walletAddress
       
       for (const nftData of externalNFTs.slice(0, 10)) { // Limit to first 10 NFTs
         try {
-          const contractAddress = nftData.token_address || nftData.contract?.address;
-          const tokenId = nftData.token_id || nftData.tokenId;
+          const rawNFT = nftData as unknown as RawNFTData;
+          const contractAddress = nftData.contractAddress || rawNFT.token_address || rawNFT.contract?.address;
+          const tokenId = rawNFT.token_id || nftData.tokenId;
           
           if (!contractAddress || !tokenId) continue;
 
           // Get metadata
-          let metadata = nftData.metadata;
-          if (!metadata && nftData.token_uri) {
-            metadata = await fetchNFTMetadata(nftData.token_uri);
+          let metadata = rawNFT.metadata;
+          if (!metadata && rawNFT.token_uri) {
+            metadata = await fetchNFTMetadata(rawNFT.token_uri);
           }
 
+          // Type cast metadata safely
+          const typedMetadata = metadata as { name?: string; description?: string; image?: string; image_url?: string } | null;
+          
+          // Create temporary NFTInfo object for risk analysis
+          const tempNFTInfo: NFTInfo = {
+            contractAddress,
+            tokenId: tokenId.toString(),
+            name: typedMetadata?.name || rawNFT.name || `NFT #${tokenId}`,
+            riskLevel: 'low', // Will be updated after analysis
+            riskFactors: []
+          };
+          
           // Analyze risk factors
-          const riskFactors = analyzeNFTRisk(nftData, metadata);
+          const riskFactors = analyzeNFTRisk(tempNFTInfo, typedMetadata);
           const riskLevel = riskFactors.length >= 3 ? 'high' : 
                            riskFactors.length >= 1 ? 'medium' : 'low';
 
           nfts.push({
             contractAddress,
             tokenId: tokenId.toString(),
-            name: metadata?.name || nftData.name || `NFT #${tokenId}`,
-            description: metadata?.description || nftData.description || 'No description available',
-            image: metadata?.image || metadata?.image_url,
+            name: typedMetadata?.name || rawNFT.name || `NFT #${tokenId}`,
+            description: typedMetadata?.description || (rawNFT as RawNFTData & { description?: string }).description || 'No description available',
+            image: typedMetadata?.image || typedMetadata?.image_url,
             riskLevel,
             riskFactors,
             metadata: {
-              ...metadata,
-              collection: nftData.collection?.name || 'Unknown Collection',
-              verified: nftData.collection?.verified || false
+              ...(typedMetadata || {}),
+              collection: (rawNFT as RawNFTData & { collection?: { name?: string; verified?: boolean } }).collection?.name || 'Unknown Collection',
+              verified: (rawNFT as RawNFTData & { collection?: { name?: string; verified?: boolean } }).collection?.verified || false
             }
           });
 
-          console.log(`Added NFT: ${metadata?.name || `#${tokenId}`}`);
+          console.log(`Added NFT: ${typedMetadata?.name || `#${tokenId}`}`);
         } catch (error) {
           console.error(`Error analyzing NFT:`, error);
           continue;
