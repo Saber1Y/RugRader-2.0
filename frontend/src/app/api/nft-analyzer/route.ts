@@ -6,6 +6,7 @@ import {
   isValidEthereumAddress,
   ERC721_ABI,
   NFTInfo,
+  NFTMetadata,
   fetchNFTMetadata,
 } from '@/lib/blockchain';
 
@@ -96,14 +97,14 @@ async function analyzeNFT(
                      riskFactors.length >= 1 ? 'medium' : 'low';
 
     // Check if collection is verified
-    const isVerified = await isCollectionVerified(contractAddress, collectionName);
+    const isVerified = await isCollectionVerified(contractAddress);
 
     const nftInfo: NFTInfo = {
       contractAddress,
       tokenId,
       name: metadata?.name || `${collectionName} #${tokenId}`,
       description: metadata?.description || 'No description available',
-      image: metadata?.image || metadata?.image_url,
+      image: metadata?.image || (typeof metadata?.image_url === 'string' ? metadata.image_url : undefined),
       riskLevel,
       riskFactors,
       metadata: {
@@ -113,7 +114,7 @@ async function analyzeNFT(
         collection: collectionName,
         verified: isVerified,
         lastAnalyzed: new Date().toISOString(),
-        attributes: metadata?.attributes || metadata?.traits || []
+        attributes: metadata?.attributes || (Array.isArray(metadata?.traits) ? metadata.traits : []) || []
       }
     };
 
@@ -142,7 +143,7 @@ async function analyzeNFT(
 async function analyzeNFTRiskFactors(
   contractAddress: string,
   tokenId: string,
-  metadata: any,
+  metadata: NFTMetadata | null,
   tokenURI: string,
   collectionName: string,
   owner: string
@@ -214,7 +215,7 @@ async function analyzeNFTRiskFactors(
     riskFactors.push(...ownershipRisks);
 
     // Check for potential wash trading or suspicious activity
-    const tradingRisks = await analyzeTradingPatterns(contractAddress, tokenId);
+    const tradingRisks = await analyzeTradingPatterns();
     riskFactors.push(...tradingRisks);
 
     console.log(`Identified ${riskFactors.length} risk factors for NFT`);
@@ -227,7 +228,7 @@ async function analyzeNFTRiskFactors(
   return riskFactors;
 }
 
-async function isCollectionVerified(contractAddress: string, ): Promise<boolean> {
+async function isCollectionVerified(contractAddress: string): Promise<boolean> {
   try {
     // Check against known verified collections
     const knownVerifiedCollections = new Set([

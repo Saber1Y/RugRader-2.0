@@ -10,6 +10,33 @@ import {
   getCollectionStats,
 } from "@/lib/blockchain";
 
+// Interface for external stats from APIs like OpenSea, Moralis
+interface ExternalStats {
+  stats?: {
+    floor_price?: number | string;
+    total_supply?: number | string;
+    owner_count?: number;
+    total_volume?: number | string;
+    [key: string]: unknown;
+  } | Record<string, unknown>;
+  floor_price?: number;
+  floor_price_eth?: number | string;
+  total_supply?: number | string;
+  unique_owner_count?: number;
+  created_date?: string | number | Date;
+  [key: string]: unknown;
+}
+
+// Interface for holder analysis data
+interface HolderAnalysis {
+  topHolders: Array<{
+    address: string;
+    count: number;
+    percentage: number;
+  }>;
+  uniqueHolders: number;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { contractAddress } = await request.json();
@@ -79,12 +106,12 @@ async function analyzeNFTCollection(
 
     // If we got external stats, use them to enhance our data
     if (externalStats) {
-      if (externalStats.stats) {
+      if (externalStats.stats && typeof externalStats.stats === 'object' && 'total_supply' in externalStats.stats) {
         // OpenSea format
-        totalSupply = externalStats.stats.total_supply || totalSupply;
+        totalSupply = (externalStats.stats as { total_supply?: number }).total_supply || totalSupply;
       } else if (externalStats.total_supply) {
         // Moralis format
-        totalSupply = parseInt(externalStats.total_supply) || totalSupply;
+        totalSupply = parseInt(String(externalStats.total_supply)) || totalSupply;
       }
     }
 
@@ -95,7 +122,7 @@ async function analyzeNFTCollection(
     );
 
     // Get floor price data
-    const floorPrice = await getFloorPrice(contractAddress, externalStats);
+    const floorPrice = await getFloorPrice(contractAddress, name, holderAnalysis, externalStats);
 
     // Analyze risk factors
     const riskFactors = await analyzeCollectionRiskFactors(
@@ -240,19 +267,22 @@ async function analyzeHolderDistribution(
 async function getFloorPrice(
   contractAddress: string,
   name: string,
-  holderAnalysis: { topHolders: { percentage: number }[] },
-  externalStats: Record<string, any>
+  holderAnalysis: HolderAnalysis,
+  externalStats: ExternalStats | null
 ): Promise<number | undefined> {
   try {
     // Try to extract floor price from external stats
     if (externalStats) {
-      if (externalStats.stats?.floor_price) {
+      if (externalStats.stats && typeof externalStats.stats === 'object' && 'floor_price' in externalStats.stats) {
         // OpenSea format
-        return parseFloat(externalStats.stats.floor_price);
+        const floorPrice = (externalStats.stats as { floor_price?: number | string }).floor_price;
+        if (floorPrice) {
+          return parseFloat(String(floorPrice));
+        }
       }
       if (externalStats.floor_price_eth) {
         // Other API formats
-        return parseFloat(externalStats.floor_price_eth);
+        return parseFloat(String(externalStats.floor_price_eth));
       }
     }
 
@@ -289,8 +319,8 @@ async function getFloorPrice(
 async function analyzeCollectionRiskFactors(
   contractAddress: string,
   name: string,
-  holderAnalysis: any,
-  externalStats: any
+  holderAnalysis: HolderAnalysis,
+  externalStats: ExternalStats | null
 ): Promise<string[]> {
   const riskFactors: string[] = [];
 
@@ -338,10 +368,13 @@ async function analyzeCollectionRiskFactors(
     // Analyze external stats if available
     if (externalStats) {
       // Check trading volume
-      if (externalStats.stats?.total_volume) {
-        const volume = parseFloat(externalStats.stats.total_volume);
-        if (volume < 10) {
-          riskFactors.push("Low trading volume detected");
+      if (externalStats.stats && typeof externalStats.stats === 'object' && 'total_volume' in externalStats.stats) {
+        const totalVolume = (externalStats.stats as { total_volume?: number | string }).total_volume;
+        if (totalVolume) {
+          const volume = parseFloat(String(totalVolume));
+          if (volume < 10) {
+            riskFactors.push("Low trading volume detected");
+          }
         }
       }
 
