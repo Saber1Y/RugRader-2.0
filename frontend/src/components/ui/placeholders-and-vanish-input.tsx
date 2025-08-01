@@ -31,10 +31,10 @@ export function PlaceholdersAndVanishInput({
 
   const handleVisibilityChange = useCallback(() => {
     if (document.visibilityState !== "visible" && intervalRef.current) {
-      clearInterval(intervalRef.current); // Clear the interval when the tab is not visible
+      clearInterval(intervalRef.current);
       intervalRef.current = null;
     } else if (document.visibilityState === "visible") {
-      startAnimation(); // Restart the interval when the tab becomes visible
+      startAnimation();
     }
   }, [startAnimation]);
 
@@ -77,6 +77,7 @@ export function PlaceholdersAndVanishInput({
     const imageData = ctx.getImageData(0, 0, 800, 800);
     const pixelData = imageData.data;
     const newData: DrawablePixel[] = [];
+
     for (let t = 0; t < 800; t++) {
       const i = 4 * t * 800;
       for (let n = 0; n < 800; n++) {
@@ -87,21 +88,16 @@ export function PlaceholdersAndVanishInput({
           pixelData[e + 2] !== 0
         ) {
           newData.push({
-            x: 100,
-            y: 150,
+            x: n,
+            y: t,
             r: 1,
-            color: "rgba(255, 200, 100, 0.75)", 
+            color: `rgba(255, 255, 255, ${Math.random() * 0.5 + 0.5})`,
           });
         }
       }
     }
 
-    newDataRef.current = newData.map(({ x, y, color }) => ({
-      x,
-      y,
-      r: 1,
-      color: `rgba(${color[0]}, ${color[1]}, ${color[2]}`,
-    }));
+    newDataRef.current = newData;
   }, [value]);
 
   useEffect(() => {
@@ -131,14 +127,13 @@ export function PlaceholdersAndVanishInput({
         const ctx = canvasRef.current?.getContext("2d");
         if (ctx) {
           ctx.clearRect(pos, 0, 800, 800);
-          newDataRef.current.forEach((t) => {
-            const { x: n, y: i, r: s, color: color } = t;
-            if (n > pos) {
+          newDataRef.current.forEach((pixel) => {
+            const { x, y, r, color } = pixel;
+            if (x > pos) {
               ctx.beginPath();
-              ctx.rect(n, i, s, s);
+              ctx.rect(x, y, r, r);
               ctx.fillStyle = color;
-              ctx.strokeStyle = color;
-              ctx.stroke();
+              ctx.fill();
             }
           });
         }
@@ -163,8 +158,8 @@ export function PlaceholdersAndVanishInput({
     setAnimating(true);
     draw();
 
-    const value = inputRef.current?.value || "";
-    if (value && inputRef.current) {
+    const currentValue = inputRef.current?.value || "";
+    if (currentValue && inputRef.current) {
       const maxX = newDataRef.current.reduce(
         (prev, current) => (current.x > prev ? current.x : prev),
         0
@@ -180,6 +175,7 @@ export function PlaceholdersAndVanishInput({
       onSubmit(e);
     }
   };
+
   return (
     <form
       className={cn(
@@ -190,7 +186,7 @@ export function PlaceholdersAndVanishInput({
     >
       <canvas
         className={cn(
-          "absolute pointer-events-none  text-base transform scale-50 top-[20%] left-2 sm:left-8 origin-top-left filter invert dark:invert-0 pr-20",
+          "absolute pointer-events-none text-base transform scale-50 top-[20%] left-2 sm:left-8 origin-top-left filter invert dark:invert-0 pr-20",
           !animating ? "opacity-0" : "opacity-100"
         )}
         ref={canvasRef}

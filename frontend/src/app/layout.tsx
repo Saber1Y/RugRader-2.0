@@ -3,18 +3,23 @@
 
 import "./globals.css";
 import { Sidebar, SidebarBody, SidebarLink } from "@/components/ui/sidebar";
-import {
-  IconGauge,
-  IconUser,
-  IconShield,
-} from "@tabler/icons-react";
+import { IconGauge } from "@tabler/icons-react";
 
 import { ReactNode } from "react";
+import { Poppins } from "next/font/google";
+
+const poppins = Poppins({
+  subsets: ["latin"],
+  weight: ["100", "200", "300", "400", "500", "600", "700", "800", "900"],
+  variable: "--font-poppins",
+});
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
-      <body className="flex min-h-screen bg-white dark:bg-neutral-900">
+      <body
+        className={`${poppins.variable} flex min-h-screen bg-white dark:bg-neutral-900`}
+      >
         <Sidebar>
           <SidebarBody>
             <SidebarLink
@@ -22,20 +27,6 @@ export default function RootLayout({ children }: { children: ReactNode }) {
                 label: "Wallet Scanner",
                 href: "/",
                 icon: <IconGauge size={18} />,
-              }}
-            />
-            <SidebarLink
-              link={{
-                label: "NFT Analyzer",
-                href: "/nft-analyzer",
-                icon: <IconUser size={18} />,
-              }}
-            />
-            <SidebarLink
-              link={{
-                label: "Collection Check",
-                href: "/collection-check",
-                icon: <IconShield size={18} />,
               }}
             />
           </SidebarBody>
